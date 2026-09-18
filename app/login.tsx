@@ -22,12 +22,21 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const ok = await login(email, senha);
-    setLoading(false);
-    if (ok) {
-      router.replace('/(tabs)');
-    } else {
-      Alert.alert('Erro', 'Credenciais inválidas.');
+    try {
+      const ok = await login(email, senha);
+      if (ok) {
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Erro', 'Credenciais inválidas.');
+      }
+    } catch (e: any) {
+      if (e?.message === 'email_nao_verificado') {
+        Alert.alert('E-mail não verificado', 'Verifique sua caixa de entrada antes de entrar.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 

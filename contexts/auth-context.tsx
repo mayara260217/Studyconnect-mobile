@@ -87,6 +87,7 @@ const AuthContext = createContext<AuthContextType>({
 
 const USER_KEY = 'studyconnect_user_v3';
 const USER_KEYS_LEGADAS = ['studyconnect_user_v2', 'studyconnect_user'];
+const TOKEN_KEY = 'studyconnect_token';
 
 
 function hojeBR() {
@@ -171,9 +172,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, senha: string): Promise<boolean> {
     if (!email.trim() || !senha.trim()) return false;
-    // TODO: remover mock quando backend estiver pronto
-    salvarUser(normalizarUser({ nome: email.split('@')[0], email: email.trim() }));
-    return true;
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), senha }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg: string = err?.message ?? '';
+        if (res.status === 403 && msg.toLowerCase().includes('verificado')) {
+          throw new Error('email_nao_verificado');
+        }
+        return false;
+      }
+      const data = await res.json();
+      await setItem(TOKEN_KEY, data.accessToken);
+      salvarUser(normalizarUser({
+        nome: data.nome,
+        email: data.email,
+        foto: data.fotoUrl ?? null,
+      }));
+      return true;
+    } catch (e: any) {
+      if (e?.message === 'email_nao_verificado') throw e;
+      return false;
+    }
   }
 
   // TODO: remover mock quando backend estiver pronto
@@ -186,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     setUser(null);
     deleteItem(USER_KEY);
+    deleteItem(TOKEN_KEY);
   }
 
   function atualizarUser(dados: Partial<User>) {
