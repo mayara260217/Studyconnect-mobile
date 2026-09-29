@@ -15,7 +15,7 @@ const BORDER = '#1E1E2E';
 export default function EditarPerfilScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, atualizarUser } = useAuth();
+  const { user, atualizarUser, atualizarPerfil } = useAuth();
 
   const [nome, setNome] = useState(user?.nome ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
@@ -33,13 +33,19 @@ export default function EditarPerfilScreen() {
     if (!result.canceled) setFoto(result.assets[0].uri);
   }
 
-  function salvar() {
+  async function salvar() {
     if (!nome.trim()) {
       Alert.alert('Atenção', 'O nome não pode estar vazio.');
       return;
     }
-    atualizarUser({ nome: nome.trim(), email: email.trim(), telefone: telefone.trim(), bio: bio.trim(), foto });
-    router.back();
+    // Campos locais (telefone, bio) são mantidos apenas no storage local
+    atualizarUser({ telefone: telefone.trim(), bio: bio.trim() });
+    const ok = await atualizarPerfil(nome.trim(), foto);
+    if (ok) {
+      router.back();
+    } else {
+      Alert.alert('Erro', 'Não foi possível salvar as alterações. Tente novamente.');
+    }
   }
 
   return (

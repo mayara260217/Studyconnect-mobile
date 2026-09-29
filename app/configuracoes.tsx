@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
-import { getItem, setItem, deleteItem } from '@/utils/storage';
+import { getItem, setItem } from '@/utils/storage';
 
 const PURPLE = '#7C3AED';
 const PURPLE_LIGHT = '#A78BFA';
@@ -15,7 +15,7 @@ const PREFS_KEY = 'studyconnect_prefs_v2';
 export default function ConfiguracoesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, atualizarUser, logout } = useAuth();
+  const { user, atualizarUser, logout, excluirConta } = useAuth();
   const [prefs, setPrefs] = useState<Prefs>({ notifMetas: true, notifSimulados: true });
   const [modalSair, setModalSair] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(false);
@@ -43,11 +43,14 @@ export default function ConfiguracoesScreen() {
     router.replace('/login');
   }
 
-  function confirmarExcluir() {
+  async function confirmarExcluir() {
     setModalExcluir(false);
-    deleteItem('studyconnect_user_v3');
-    logout();
-    router.replace('/login');
+    const ok = await excluirConta();
+    if (ok) {
+      router.replace('/login');
+    } else {
+      Alert.alert('Erro', 'Não foi possível excluir a conta. Tente novamente.');
+    }
   }
 
   return (

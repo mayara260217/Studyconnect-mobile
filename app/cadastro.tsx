@@ -32,12 +32,21 @@ export default function CadastroScreen() {
       return;
     }
     setLoading(true);
-    const resultado = await cadastrar(nome, email, senha);
-    setLoading(false);
-    if (resultado === true || resultado === 'verificar') {
-      router.replace('/(tabs)');
-    } else {
-      Alert.alert('Erro', 'Não foi possível criar a conta.');
+    try {
+      const resultado = await cadastrar(nome, email, senha);
+      if (resultado === 'verificar') {
+        router.replace({ pathname: '/verificar-email', params: { email: email.trim().toLowerCase() } });
+      } else {
+        Alert.alert('Erro', 'Não foi possível criar a conta.');
+      }
+    } catch (e: any) {
+      if (e?.message === 'email_ja_cadastrado') {
+        Alert.alert('E-mail já cadastrado', 'Este e-mail já possui uma conta. Faça login ou recupere sua senha.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 

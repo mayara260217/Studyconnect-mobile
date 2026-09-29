@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getItem, setItem, deleteItem } from '@/utils/storage';
-import { API_BASE } from '@/utils/api';
+import { API_BASE, TOKEN_KEY, apiFetch } from '@/utils/api';
 
 export const XP_POR_NIVEL = [0, 100, 250, 500, 1000, 1800, 3000, 4500, 6500, 9000, 12000];
 
@@ -31,6 +31,7 @@ export type Badge = {
 };
 
 export type User = {
+  id: number;
   nome: string;
   email: string;
   foto: string | null;
@@ -70,6 +71,8 @@ type AuthContextType = {
   cadastrar: (nome: string, email: string, senha: string) => Promise<boolean | 'verificar'>;
   logout: () => void;
   atualizarUser: (dados: Partial<User>) => void;
+  atualizarPerfil: (nome: string, fotoUrl: string | null) => Promise<boolean>;
+  excluirConta: () => Promise<boolean>;
   ganharXP: (quantidade: number, motivo: string) => { levelUp: boolean; novoNivel: number };
   registrarLogin: () => void;
 };
@@ -81,27 +84,28 @@ const AuthContext = createContext<AuthContextType>({
   cadastrar: async () => false,
   logout: () => {},
   atualizarUser: () => {},
+  atualizarPerfil: async () => false,
+  excluirConta: async () => false,
   ganharXP: () => ({ levelUp: false, novoNivel: 1 }),
   registrarLogin: () => {},
 });
 
 const USER_KEY = 'studyconnect_user_v3';
 const USER_KEYS_LEGADAS = ['studyconnect_user_v2', 'studyconnect_user'];
-const TOKEN_KEY = 'studyconnect_token';
-
 
 function hojeBR() {
   return new Date().toLocaleDateString('pt-BR');
 }
 
-function normalizarUser(raw: Partial<User> & { redacoesFetas?: number }, nomeFallback = 'Estudante', emailFallback = 'estudante@email.com'): User {
+function normalizarUser(raw: Partial<User> & { redacoesFetas?: number; fotoUrl?: string | null }, nomeFallback = 'Estudante', emailFallback = 'estudante@email.com'): User {
   const xp = raw.xp ?? 0;
   const badgesSalvos = raw.badges ?? [];
   const badges = BADGES_INICIAIS.map((base) => badgesSalvos.find((b) => b.id === base.id) ?? base);
   return {
+    id: raw.id ?? 0,
     nome: raw.nome ?? nomeFallback,
     email: raw.email ?? emailFallback,
-    foto: raw.foto ?? null,
+    foto: raw.foto ?? raw.fotoUrl ?? null,
     xp,
     nivel: calcularNivel(xp),
     sequencia: raw.sequencia ?? raw.diasConsecutivos ?? 0,
@@ -166,10 +170,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setItem(USER_KEY, JSON.stringify(normalizado));
   }
 
-  function criarUserBase(nome: string, email: string): User {
-    return normalizarUser({ nome, email });
-  }
-
   async function login(email: string, senha: string): Promise<boolean> {
     if (!email.trim() || !senha.trim()) return false;
     try {
@@ -189,9 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       await setItem(TOKEN_KEY, data.accessToken);
       salvarUser(normalizarUser({
+        id: data.id,
         nome: data.nome,
         email: data.email,
-        foto: data.fotoUrl ?? null,
+        fotoUrl: data.fotoUrl ?? null,
       }));
       return true;
     } catch (e: any) {
@@ -200,11 +201,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // TODO: remover mock quando backend estiver pronto
   async function cadastrar(nome: string, email: string, senha: string): Promise<boolean | 'verificar'> {
     if (!nome.trim() || !email.trim() || !senha.trim()) return false;
-    salvarUser(normalizarUser({ nome: nome.trim(), email: email.trim().toLowerCase() }));
-    return true;
+    try {
+      const res = await fetch(`${API_BASE}/usuarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nome.trim(), email: email.trim().toLowerCase(), senha }),
+      });
+      if (res.status === 201) return 'verificar';
+      if (res.status === 409) throw new Error('email_ja_cadastrado');
+      return false;
+    } catch (e: any) {
+      if (e?.message === 'email_ja_cadastrado') throw e;
+      return false;
+    }
   }
 
   function logout() {
@@ -216,6 +227,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function atualizarUser(dados: Partial<User>) {
     if (!user) return;
     salvarUser({ ...user, ...dados });
+  }
+
+  async function atualizarPerfil(nome: string, fotoUrl: string | null): Promise<boolean> {
+    if (!user?.id) return false;
+    try {
+      const res = await apiFetch(`/usuarios/${user.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ nome, fotoUrl }),
+      });
+      if (!res.ok) return false;
+      salvarUser({ ...user, nome, foto: fotoUrl });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function excluirConta(): Promise<boolean> {
+    if (!user?.id) return false;
+    try {
+      const res = await apiFetch(`/usuarios/${user.id}`, { method: 'DELETE' });
+      if (!res.ok) return false;
+      logout();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function ganharXP(quantidade: number, _motivo: string): { levelUp: boolean; novoNivel: number } {
@@ -250,7 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, cadastrar, logout, atualizarUser, ganharXP, registrarLogin }}>
+    <AuthContext.Provider value={{ user, loading, login, cadastrar, logout, atualizarUser, atualizarPerfil, excluirConta, ganharXP, registrarLogin }}>
       {children}
     </AuthContext.Provider>
   );

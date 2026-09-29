@@ -45,6 +45,7 @@ function RootLayoutInner() {
         <Stack.Screen name="configuracoes" options={{ headerShown: false }} />
         <Stack.Screen name="editar-perfil" options={{ headerShown: false }} />
         <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
+        <Stack.Screen name="verificar-email" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="light" />
     </ThemeProvider>
